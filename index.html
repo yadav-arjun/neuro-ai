@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NeuroGuard AI - Real-Time EEG Monitor</title>
+    <title>NeuroGuard AI</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         body {
@@ -44,12 +44,12 @@
     <div id="alert-banner">⚠️ ANOMALY DETECTED - POTENTIAL SEIZURE ACTIVITY</div>
     
     <script>
-        // Data buffer for rolling window visualization
+        // keep small data store here
         let dataBuffer = [];
         const maxDataPoints = 100;
         let timeIndex = 0;
         
-        // Initialize Plotly chart on page load
+        // make chart first time
         function initializeChart() {
             const initialData = [];
             const layout = {
@@ -61,7 +61,7 @@
             Plotly.newPlot('eeg-plot', initialData, layout);
         }
         
-        // Update alert banner based on prediction
+        // show alert if need
         function updateAlert(isSeizure) {
             const alertBanner = document.getElementById('alert-banner');
             if (isSeizure) {
@@ -71,20 +71,19 @@
             }
         }
         
-        // Update Plotly chart with new EEG data
+        // add new eeg data to chart
         function updateChart(eegData) {
-            // Add new data point to buffer
             dataBuffer.push({
                 time: timeIndex++,
                 values: eegData
             });
             
-            // Maintain rolling buffer of last 100 data points
+            // keep only last few data
             if (dataBuffer.length > maxDataPoints) {
                 dataBuffer.shift();
             }
             
-            // Prepare data for Plotly (display first 5-10 channels)
+            // only show few channels
             const numChannels = Math.min(10, eegData.length);
             const traces = [];
             const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
@@ -103,7 +102,7 @@
                 });
             }
             
-            // Update chart using Plotly.react for efficient updates
+            // update chart fast way
             const layout = {
                 title: 'Real-Time EEG Data Stream',
                 xaxis: { title: 'Time (samples)' },
@@ -113,19 +112,19 @@
             Plotly.react('eeg-plot', traces, layout);
         }
         
-        // Main dashboard update function
+        // whole update thing
         function updateDashboard() {
-            // Fetch new EEG sample from backend
+            // get new eeg
             fetch('/eeg-stream')
                 .then(response => response.json())
                 .then(response => {
-                    // Handle new response format: {data: [...], actual_label: 0/1}
+                    // get data part
                     const eegData = response.data || response;
                     
-                    // Update visualization with new data
+                    // put data on chart
                     updateChart(eegData);
                     
-                    // Send complete response to prediction endpoint (includes actual_label)
+                    // send for predict
                     return fetch('/predict', {
                         method: 'POST',
                         headers: {
@@ -136,7 +135,7 @@
                 })
                 .then(response => response.json())
                 .then(prediction => {
-                    // Update alert banner based on prediction
+                    // show banner if seizure
                     updateAlert(prediction.is_seizure);
                 })
                 .catch(error => {
@@ -144,10 +143,10 @@
                 });
         }
         
-        // Initialize chart when page loads
+        // start everything
         window.addEventListener('DOMContentLoaded', function() {
             initializeChart();
-            // Start polling every 1000ms (1 second)
+            // check every second
             setInterval(updateDashboard, 1000);
         });
     </script>
