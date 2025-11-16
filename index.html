@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NeuroGuard AI - Real-Time EEG Monitor</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        
+        #eeg-plot {
+            width: 100%;
+            height: 500px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        #alert-banner {
+            display: none;
+            background-color: #e74c3c;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>NeuroGuard AI Dashboard</h1>
+    <div id="eeg-plot"></div>
+    <div id="alert-banner">⚠️ ANOMALY DETECTED - POTENTIAL SEIZURE ACTIVITY</div>
+    
+    <script>
+        // Data buffer for rolling window visualization
+        let dataBuffer = [];
+        const maxDataPoints = 100;
+        let timeIndex = 0;
+        
+        // Initialize Plotly chart on page load
+        function initializeChart() {
+            const initialData = [];
+            const layout = {
+                title: 'Real-Time EEG Data Stream',
+                xaxis: { title: 'Time (samples)' },
+                yaxis: { title: 'EEG Signal Value' },
+                showlegend: true
+            };
+            Plotly.newPlot('eeg-plot', initialData, layout);
+        }
+        
+        // Update alert banner based on prediction
+        function updateAlert(isSeizure) {
+            const alertBanner = document.getElementById('alert-banner');
+            if (isSeizure) {
+                alertBanner.style.display = 'block';
+            } else {
+                alertBanner.style.display = 'none';
+            }
+        }
+        
+        // Update Plotly chart with new EEG data
+        function updateChart(eegData) {
+            // Add new data point to buffer
+            dataBuffer.push({
+                time: timeIndex++,
+                values: eegData
+            });
+            
+            // Maintain rolling buffer of last 100 data points
+            if (dataBuffer.length > maxDataPoints) {
+                dataBuffer.shift();
+            }
+            
+            // Prepare data for Plotly (display first 5-10 channels)
+            const numChannels = Math.min(10, eegData.length);
+            const traces = [];
+            const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                           '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+            
+            for (let i = 0; i < numChannels; i++) {
+                const xData = dataBuffer.map(d => d.time);
+                const yData = dataBuffer.map(d => d.values[i]);
+                
+                traces.push({
+                    x: xData,
+                    y: yData,
+                    mode: 'lines',
+                    name: `Channel ${i + 1}`,
+                    line: { color: colors[i % colors.length] }
+                });
+            }
+            
+            // Update chart using Plotly.react for efficient updates
+            const layout = {
+                title: 'Real-Time EEG Data Stream',
+                xaxis: { title: 'Time (samples)' },
+                yaxis: { title: 'EEG Signal Value' },
+                showlegend: true
+            };
+            Plotly.react('eeg-plot', traces, layout);
+        }
+        
+        // Main dashboard update function
+        function updateDashboard() {
+            // Fetch new EEG sample from backend
+            fetch('/eeg-stream')
+                .then(response => response.json())
+                .then(response => {
+                    // Handle new response format: {data: [...], actual_label: 0/1}
+                    const eegData = response.data || response;
+                    
+                    // Update visualization with new data
+                    updateChart(eegData);
+                    
+                    // Send complete response to prediction endpoint (includes actual_label)
+                    return fetch('/predict', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(response)
+                    });
+                })
+                .then(response => response.json())
+                .then(prediction => {
+                    // Update alert banner based on prediction
+                    updateAlert(prediction.is_seizure);
+                })
+                .catch(error => {
+                    console.error('Error updating dashboard:', error);
+                });
+        }
+        
+        // Initialize chart when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            initializeChart();
+            // Start polling every 1000ms (1 second)
+            setInterval(updateDashboard, 1000);
+        });
+    </script>
+</body>
+</html>
